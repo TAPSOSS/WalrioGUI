@@ -1,5 +1,5 @@
-# INSERT PROJECT NAME HERE
----INSERT PROJECT DESCRIPTION HERE---
+# Walrio GUI
+Walrio GUI is a modular music player based on using the modules from the [Walrio Project](https://github.com/TAPSOSS/Walrio).
 
 ## Contributing
 For those interested in contributing code/documentation, please check the [relevant guidelines and requirements](CONTRIBUTING.md) 
