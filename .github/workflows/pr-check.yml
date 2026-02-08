@@ -76,16 +76,28 @@ jobs:
               errors.push('❌ Could not find description section.');
             }
             
-            // Check if all checkboxes are checked
-            const uncheckedBoxes = prBody.match(/- \[ \]/g);
-            if (uncheckedBoxes && uncheckedBoxes.length > 0) {
-              errors.push(`❌ ${uncheckedBoxes.length} checkbox(es) are not checked. Please complete all checklist items.`);
+            // Check Type of Change section (at least 1 must be checked)
+            const typeOfChangeMatch = prBody.match(/## Type of Change\s*([\s\S]*?)## Checklist/);
+            if (typeOfChangeMatch) {
+              const typeSection = typeOfChangeMatch[1];
+              const checkedTypes = typeSection.match(/- \[[xX]\]/g);
+              if (!checkedTypes || checkedTypes.length === 0) {
+                errors.push('❌ No "Type of Change" selected. Please mark at least one type.');
+              }
+            } else {
+              errors.push('❌ Could not find "Type of Change" section.');
             }
             
-            // Check if there are any checkboxes at all
-            const allBoxes = prBody.match(/- \[[xX ]\]/g);
-            if (!allBoxes || allBoxes.length === 0) {
-              errors.push('❌ No checkboxes found in PR description.');
+            // Check Checklist section (all must be checked)
+            const checklistMatch = prBody.match(/## Checklist\s*([\s\S]*?)(?:## |$)/);
+            if (checklistMatch) {
+              const checklistSection = checklistMatch[1];
+              const uncheckedBoxes = checklistSection.match(/- \[ \]/g);
+              if (uncheckedBoxes && uncheckedBoxes.length > 0) {
+                errors.push(`❌ ${uncheckedBoxes.length} checklist item(s) not completed. Please complete all checklist items.`);
+              }
+            } else {
+              errors.push('❌ Could not find "Checklist" section.');
             }
             
             return {
