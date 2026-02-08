@@ -422,6 +422,12 @@ jobs:
             const emojiCheck = JSON.parse(`${{ steps.emoji-check.outputs.result }}`);
             const docstringCheck = JSON.parse(`${{ steps.docstring-check.outputs.result }}`);
             
+            // Track individual test results
+            const hasDescription = !validation.errors.some(err => err.includes('description'));
+            const hasCheckboxes = !validation.errors.some(err => err.includes('Type of Change') || err.includes('checklist'));
+            const noEmojis = !emojiCheck.hasEmojis;
+            const hasDocstrings = !docstringCheck.hasIssues;
+            
             let allErrors = [...validation.errors];
             
             // Add emoji findings to errors
@@ -466,9 +472,23 @@ jobs:
             
             let commentBody;
             if (allErrors.length === 0) {
-              commentBody = '✅ **PR validation passed!**\n\nAll checkboxes are checked, a description has been provided, no emojis were found in code files, and all Python docstrings are properly formatted. This PR is ready for human review.';
+              commentBody = '✅ **PR validation passed!**\n\n' +
+                            '- ✅ PR has description\n' +
+                            '- ✅ PR checkboxes checked\n' +
+                            '- ✅ No emojis in code files\n' +
+                            '- ✅ Python docstrings properly formatted\n\n' +
+                            'This PR is ready for human review.';
             } else {
-              commentBody = '⚠️ **PR validation failed**\n\nPlease address the following issues:\n\n' + 
+              // Build status summary
+              const statusSummary = 
+                `- ${hasDescription ? '✅' : '❌'} PR has description\n` +
+                `- ${hasCheckboxes ? '✅' : '❌'} PR checkboxes checked\n` +
+                `- ${noEmojis ? '✅' : '❌'} No emojis in code files\n` +
+                `- ${hasDocstrings ? '✅' : '❌'} Python docstrings properly formatted\n`;
+              
+              commentBody = '⚠️ **PR validation failed**\n\n' +
+                            statusSummary + '\n' +
+                            'Please address the following issues:\n\n' + 
                             allErrors.join('\n') + 
                             '\n\nOnce fixed, comment "bot, check" again to re-validate.';
             }
