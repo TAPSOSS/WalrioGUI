@@ -113,6 +113,14 @@ jobs:
             const fs = require('fs');
             const path = require('path');
             
+            // Get PR details for head SHA
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            const headSha = pullRequest.head.sha;
+            
             // Read exceptions file
             let exceptions = [];
             const exceptionsPath = '.github/workflows/.doc_exceptions';
@@ -165,7 +173,7 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   path: file.filename,
-                  ref: context.payload.issue.pull_request.head.sha
+                  ref: headSha
                 });
                 
                 const content = Buffer.from(fileContent.content, 'base64').toString('utf8');
@@ -201,6 +209,14 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+            
+            // Get PR details for head SHA
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            const headSha = pullRequest.head.sha;
             
             // Read exceptions file
             let exceptions = [];
@@ -251,7 +267,7 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   path: file.filename,
-                  ref: context.payload.issue.pull_request.head.sha
+                  ref: headSha
                 });
                 
                 const content = Buffer.from(fileContent.content, 'base64').toString('utf8');
