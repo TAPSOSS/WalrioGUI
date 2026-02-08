@@ -6,9 +6,11 @@ class Greeter:
     def greet(self, name: str) -> str:
         """
         Return a personalized greeting.
-        TESTING MISSING REUTURN STATEMENT IN DOCSTRING AND EMOJI😊
 
         Args:
             name (str): The name to greet.
+            
+        Returns:
+            str: the greeting message.
         """
         return f"Hi {name}!"
