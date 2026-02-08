@@ -14,7 +14,7 @@ for example, Bug Fix: changed blue button to red-->
 
 ## Checklist
 <!-- Mark completed items with an "X" -->
-- [ ] I have read the [CONTRIBUTING.md](CONTRIBUTING.md) guidelines and followed them
+- [ ] I have read the [CONTRIBUTING.md](../CONTRIBUTING.md) guidelines and followed them
 - [ ] I have updated any documentation if necessary
 - [ ] I have the right to contribute this code and agree to license it under the project's current license
 - [ ] I will type "bot, check" (without quotes) after sending this pull request
