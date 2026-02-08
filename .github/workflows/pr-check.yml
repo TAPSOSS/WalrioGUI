@@ -161,12 +161,233 @@ jobs:
               findings: emojiFindings
             };
       
+      - name: Check Python docstrings
+        id: docstring-check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Read exceptions file
+            let exceptions = [];
+            const exceptionsPath = '.github/workflows/.doc_exceptions';
+            if (fs.existsSync(exceptionsPath)) {
+              const exceptionsContent = fs.readFileSync(exceptionsPath, 'utf8');
+              exceptions = exceptionsContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'));
+            }
+            
+            // Function to check if file matches any exception pattern
+            function isExcepted(filePath, patterns) {
+              for (const pattern of patterns) {
+                // Convert gitignore-style patterns to regex
+                let regexPattern = pattern
+                  .replace(/\./g, '\\.')
+                  .replace(/\*/g, '.*')
+                  .replace(/\?/g, '.');
+                
+                const regex = new RegExp('^' + regexPattern + '$');
+                if (regex.test(filePath) || regex.test(path.basename(filePath))) {
+                  return true;
+                }
+              }
+              return false;
+            }
+            
+            // Get changed files in the PR
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            let docstringIssues = [];
+            
+            for (const file of files) {
+              // Only check Python files that weren't deleted or excepted
+              if (!file.filename.endsWith('.py') || file.status === 'removed' || isExcepted(file.filename, exceptions)) {
+                continue;
+              }
+              
+              try {
+                // Get file content
+                const { data: fileContent } = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: file.filename,
+                  ref: context.payload.issue.pull_request.head.sha
+                });
+                
+                const content = Buffer.from(fileContent.content, 'base64').toString('utf8');
+                const lines = content.split('\n');
+                
+                // Function to check if a line starts a class or function definition
+                function parseDefinitions(lines) {
+                  const issues = [];
+                  let i = 0;
+                  
+                  while (i < lines.length) {
+                    const line = lines[i];
+                    const trimmed = line.trim();
+                    
+                    // Check for class or function definition (not nested in strings)
+                    const classMatch = trimmed.match(/^class\s+(\w+)/);
+                    const funcMatch = trimmed.match(/^def\s+(\w+)\s*\((.*?)\)/);
+                    
+                    if (classMatch || funcMatch) {
+                      const defType = classMatch ? 'class' : 'function';
+                      const name = classMatch ? classMatch[1] : funcMatch[1];
+                      const lineNum = i + 1;
+                      
+                      // Skip private methods/functions (starting with _)
+                      if (name.startsWith('_') && !name.startsWith('__')) {
+                        i++;
+                        continue;
+                      }
+                      
+                      // Look for docstring on next non-empty line
+                      let j = i + 1;
+                      while (j < lines.length && lines[j].trim() === '') {
+                        j++;
+                      }
+                      
+                      if (j >= lines.length) {
+                        issues.push({
+                          line: lineNum,
+                          type: defType,
+                          name: name,
+                          issue: 'No docstring found'
+                        });
+                        i++;
+                        continue;
+                      }
+                      
+                      const nextLine = lines[j].trim();
+                      
+                      // Check if there's a docstring
+                      if (!nextLine.startsWith('"""') && !nextLine.startsWith("'''")) {
+                        issues.push({
+                          line: lineNum,
+                          type: defType,
+                          name: name,
+                          issue: 'No docstring found'
+                        });
+                        i++;
+                        continue;
+                      }
+                      
+                      // Extract full docstring
+                      const quoteType = nextLine.startsWith('"""') ? '"""' : "'''";
+                      let docstring = '';
+                      let docstringStart = j;
+                      
+                      // Single-line docstring
+                      if (nextLine.startsWith(quoteType) && nextLine.endsWith(quoteType) && nextLine.length > 6) {
+                        docstring = nextLine.slice(3, -3).trim();
+                      } else {
+                        // Multi-line docstring
+                        let k = j;
+                        let foundEnd = false;
+                        while (k < lines.length) {
+                          const currentLine = lines[k];
+                          docstring += currentLine + '\n';
+                          if (k > j && currentLine.trim().endsWith(quoteType)) {
+                            foundEnd = true;
+                            break;
+                          }
+                          k++;
+                        }
+                        if (!foundEnd) {
+                          issues.push({
+                            line: lineNum,
+                            type: defType,
+                            name: name,
+                            issue: 'Unclosed docstring'
+                          });
+                          i++;
+                          continue;
+                        }
+                      }
+                      
+                      // Validate docstring content
+                      if (docstring.trim().length === 0) {
+                        issues.push({
+                          line: lineNum,
+                          type: defType,
+                          name: name,
+                          issue: 'Empty docstring'
+                        });
+                        i++;
+                        continue;
+                      }
+                      
+                      // For functions, check for Args and Returns sections if needed
+                      if (funcMatch) {
+                        const params = funcMatch[2];
+                        const hasParams = params.trim().length > 0 && 
+                                         params.trim() !== 'self' && 
+                                         params.trim() !== 'cls';
+                        
+                        // Check for Args section if function has parameters
+                        if (hasParams && !docstring.includes('Args:') && !docstring.includes('Arguments:')) {
+                          issues.push({
+                            line: lineNum,
+                            type: defType,
+                            name: name,
+                            issue: 'Missing Args: section for parameters'
+                          });
+                        }
+                        
+                        // Check for Returns section if function has return type annotation
+                        const fullDef = line + (lines[i + 1] || '');
+                        if (fullDef.includes('->') && fullDef.includes('-> None') === false) {
+                          if (!docstring.includes('Returns:') && !docstring.includes('Return:')) {
+                            issues.push({
+                              line: lineNum,
+                              type: defType,
+                              name: name,
+                              issue: 'Missing Returns: section for return value'
+                            });
+                          }
+                        }
+                      }
+                    }
+                    
+                    i++;
+                  }
+                  
+                  return issues;
+                }
+                
+                const issues = parseDefinitions(lines);
+                
+                if (issues.length > 0) {
+                  docstringIssues.push({
+                    file: file.filename,
+                    issues: issues
+                  });
+                }
+                
+              } catch (error) {
+                console.log(`Skipping file ${file.filename}: ${error.message}`);
+              }
+            }
+            
+            return {
+              hasIssues: docstringIssues.length > 0,
+              findings: docstringIssues
+            };
+      
       - name: Post validation result
         uses: actions/github-script@v7
         with:
           script: |
             const validation = ${{ steps.validate.outputs.result }};
             const emojiCheck = ${{ steps.emoji-check.outputs.result }};
+            const docstringCheck = ${{ steps.docstring-check.outputs.result }};
             
             let allErrors = [...validation.errors];
             
@@ -193,9 +414,26 @@ jobs:
               }
             }
             
+            // Add docstring findings to errors
+            if (docstringCheck.hasIssues) {
+              allErrors.push('\n❌ **Python docstring issues (Google style required):**');
+              
+              docstringCheck.findings.forEach(fileData => {
+                allErrors.push(`\n**${fileData.file}:**`);
+                fileData.issues.forEach(issue => {
+                  allErrors.push(`  - Line ${issue.line} (${issue.type} \`${issue.name}\`): ${issue.issue}`);
+                });
+              });
+              
+              allErrors.push('\n*Every function and class needs a docstring with:*');
+              allErrors.push('  - A 1-line summary of what it does');
+              allErrors.push('  - `Args:` section for each parameter');
+              allErrors.push('  - `Returns:` section if it returns a value');
+            }
+            
             let commentBody;
             if (allErrors.length === 0) {
-              commentBody = '✅ **PR validation passed!**\n\nAll checkboxes are checked, a description has been provided, and no emojis were found in code files. This PR is ready for human review.';
+              commentBody = '✅ **PR validation passed!**\n\nAll checkboxes are checked, a description has been provided, no emojis were found in code files, and all Python docstrings are properly formatted. This PR is ready for human review.';
             } else {
               commentBody = '⚠️ **PR validation failed**\n\nPlease address the following issues:\n\n' + 
                             allErrors.join('\n') + 
