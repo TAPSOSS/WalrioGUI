@@ -1,0 +1,94 @@
+name: PR Checklist Validator
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  validate-pr:
+    # Only run on PR comments that contain "bot, check"
+    if: github.event.issue.pull_request && contains(github.event.comment.body, 'bot, check')
+    runs-on: ubuntu-latest
+    
+    permissions:
+      pull-requests: write
+      issues: write
+    
+    steps:
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            return pullRequest.body || '';
+          result-encoding: string
+      
+      - name: Validate PR
+        id: validate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prBody = ${{ steps.pr.outputs.result }};
+            let errors = [];
+            
+            // Check for description
+            const descriptionMatch = prBody.match(/## Description\s*([\s\S]*?)## Type of Change/);
+            if (descriptionMatch) {
+              const description = descriptionMatch[1];
+              // Remove HTML comments and whitespace
+              const cleanDescription = description.replace(/<!--[\s\S]*?-->/g, '').trim();
+              if (cleanDescription.length === 0) {
+                errors.push('❌ No description provided. Please add a description of your changes.');
+              }
+            } else {
+              errors.push('❌ Could not find description section.');
+            }
+            
+            // Check if all checkboxes are checked
+            const uncheckedBoxes = prBody.match(/- \[ \]/g);
+            if (uncheckedBoxes && uncheckedBoxes.length > 0) {
+              errors.push(`❌ ${uncheckedBoxes.length} checkbox(es) are not checked. Please complete all checklist items.`);
+            }
+            
+            // Check if there are any checkboxes at all
+            const allBoxes = prBody.match(/- \[[xX ]\]/g);
+            if (!allBoxes || allBoxes.length === 0) {
+              errors.push('❌ No checkboxes found in PR description.');
+            }
+            
+            return {
+              valid: errors.length === 0,
+              errors: errors
+            };
+      
+      - name: Post validation result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const validation = ${{ steps.validate.outputs.result }};
+            
+            let commentBody;
+            if (validation.valid) {
+              commentBody = '✅ **PR validation passed!**\n\nAll checkboxes are checked and a description has been provided. This PR is ready for human review.';
+            } else {
+              commentBody = '⚠️ **PR validation failed**\n\nPlease address the following issues:\n\n' + 
+                            validation.errors.join('\n') + 
+                            '\n\nOnce fixed, comment "bot, check" again to re-validate.';
+            }
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
+            
+            // Fail the workflow if validation failed
+            if (!validation.valid) {
+              core.setFailed('PR validation failed');
+            }
