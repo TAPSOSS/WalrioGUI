@@ -418,9 +418,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const validation = ${{ steps.validate.outputs.result }};
-            const emojiCheck = ${{ steps.emoji-check.outputs.result }};
-            const docstringCheck = ${{ steps.docstring-check.outputs.result }};
+            const validation = JSON.parse(`${{ steps.validate.outputs.result }}`);
+            const emojiCheck = JSON.parse(`${{ steps.emoji-check.outputs.result }}`);
+            const docstringCheck = JSON.parse(`${{ steps.docstring-check.outputs.result }}`);
             
             let allErrors = [...validation.errors];
             
