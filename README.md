@@ -2,8 +2,7 @@
 Walrio GUI is a modular music player based on using the modules from the [Walrio Project](https://github.com/TAPSOSS/Walrio).
 
 ## Contributing
-For those interested in contributing code/documentation, please check the [relevant guidelines and requirements](CONTRIBUTING.md) 
-and general [contributing guidelines](https://github.com/TAPSOSS/ContributionGuidelines/blob/main/CONTRIBUTING.md).
+For those interested in contributing code/documentation, please check the [contribution guidelines](CONTRIBUTING.md).
 
 All current contributors are listed both in the sidebar and (optionally) in the [AUTHORS](AUTHORS) file.
 
