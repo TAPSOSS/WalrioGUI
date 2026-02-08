@@ -8,7 +8,7 @@ for example, Bug Fix: changed blue button to red-->
 ## Type of Change
 <!-- Mark any relevant options with an "X" -->
 - [ ] Bug fix (non-breaking change that fixes an issue)
-- [X] New feature (non-breaking change that adds functionality)
+- [ ] New feature (non-breaking change that adds functionality)
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] Documentation update
 
